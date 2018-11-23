@@ -1,12 +1,15 @@
 #!/bin/bash
 
 set -e
-TMP_DIR="tmp/"
-if [ -d "$TMP_DIR" ]; then
-  rm -rf $TMP_DIR
+
+# absolute dir to temp files
+TMP_DIR="$(pwd)/tmp"
+if [ ! -d "$TMP_DIR" ]; then
+  mkdir -p $TMP_DIR
 fi
 
-DATA_DIR="data/"
+# absolute dir to data files
+DATA_DIR="$(pwd)/data"
 if [ ! -d "$DATA_DIR" ]; then
   mkdir -p $DATA_DIR
 fi
@@ -22,27 +25,32 @@ NAMES=$(echo $REPOS | jq ".[] | .full_name" | sed "s/\"//g")
 
 # analyze each repo
 for NAME in $NAMES; do 
-  # fetch the remote repo
+  # setup tmp
+  echo "Creating tempdir for $NAME..."
+  mkdir -p $TMP_DIR/$NAME
+
+  # clone
   echo "Cloning $NAME..."
-  mkdir -p $TMP_DIR
   URL="https://github.com/$NAME.git"
+  cd $TMP_DIR/$NAME
+  git clone $URL .
+
+  # setup data dir
   if [ ! -d "$DATA_DIR/$NAME" ]; then
       mkdir -p $DATA_DIR/$NAME
   fi
-  mkdir -p $TMP_DIR
-  cd $TMP_DIR
-  git clone $URL .
-
+  
   # from master branch get package-lock.json and npm audit
   COMMIT_TIME=$(git show -s --format=%ct)
   if [ -d "$DATA_DIR/$NAME/$COMMIT_TIME" ]; then
       echo "Skipped commit for $NAME directory already exists"
       continue
     else
-      mkdir -p ../$DATA_DIR/$NAME/$COMMIT_TIME
+      mkdir -p $DATA_DIR/$NAME/$COMMIT_TIME
   fi
-  cp package-lock.json ../$DATA_DIR/$NAME/$COMMIT_TIME
+  cp package-lock.json $DATA_DIR/$NAME/$COMMIT_TIME 2>/dev/null || :
+  cp package.json $DATA_DIR/$NAME/$COMMIT_TIME 2>/dev/null || :
 
-  cd ..
-  rm -rf $TMP_DIR
+  # remove temp dir
+  rm -rf $TMP_DIR/$NAME
 done
