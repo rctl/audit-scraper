@@ -9,7 +9,7 @@ if [ ! -d "$TMP_DIR" ]; then
 fi
 
 # absolute dir to data files
-DATA_DIR="$(pwd)/data"
+DATA_DIR="$(pwd)/data/sources"
 if [ ! -d "$DATA_DIR" ]; then
   mkdir -p $DATA_DIR
 fi
@@ -39,17 +39,30 @@ for NAME in $NAMES; do
   if [ ! -d "$DATA_DIR/$NAME" ]; then
       mkdir -p $DATA_DIR/$NAME
   fi
-  
-  # from master branch get package-lock.json and npm audit
-  COMMIT_TIME=$(git show -s --format=%ct)
-  if [ -d "$DATA_DIR/$NAME/$COMMIT_TIME" ]; then
-      echo "Skipped commit for $NAME directory already exists"
+
+  # investigate files
+  FILES=("package-lock.json" "package.json")
+  for FILE in "${FILES[@]}"; do
+    if [ ! -f "$FILE" ]; then
+      echo "Skipped missing $FILE"
       continue
-    else
-      mkdir -p $DATA_DIR/$NAME/$COMMIT_TIME
-  fi
-  cp package-lock.json $DATA_DIR/$NAME/$COMMIT_TIME 2>/dev/null || :
-  cp package.json $DATA_DIR/$NAME/$COMMIT_TIME 2>/dev/null || :
+    fi
+    echo "Investigating $FILE..."
+    VERSIONS=$(git log --pretty=format:"%H" $FILE)
+    for VERSION in $VERSIONS; do
+      echo "Checking out $VERSION"
+      git checkout $VERSION
+      # from master branch get package-lock.json and npm audit
+      COMMIT_TIME=$(git show -s --format=%ct)
+      if [ -d "$DATA_DIR/$NAME/$COMMIT_TIME" ]; then
+          echo "Skipped commit for $NAME directory already exists"
+          continue
+        else
+          mkdir -p $DATA_DIR/$NAME/$COMMIT_TIME
+      fi
+      cp $FILE $DATA_DIR/$NAME/$COMMIT_TIME 2>/dev/null || :
+    done
+  done
 
   # remove temp dir
   rm -rf $TMP_DIR/$NAME
