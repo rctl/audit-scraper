@@ -41,27 +41,34 @@ for NAME in $NAMES; do
   fi
 
   # investigate files
-  FILES=("package-lock.json" "package.json")
-  for FILE in "${FILES[@]}"; do
-    if [ ! -f "$FILE" ]; then
-      echo "Skipped missing $FILE"
-      continue
+  if [ ! -f "package.json" ]; then
+    echo "Skipped missing package.json"
+    continue
+  fi
+  echo "Investigating package.json..."
+  VERSIONS=$(git log --pretty=format:"%H" package.json)
+  for VERSION in $VERSIONS; do
+    cd $TMP_DIR/$NAME
+    echo "Checking out $VERSION"
+    git checkout $VERSION
+    # from master branch get package-lock.json and npm audit
+    COMMIT_TIME=$(git show -s --format=%ct)
+    if [ -d "$DATA_DIR/$NAME/$COMMIT_TIME" ]; then
+        echo "Skipped commit for $NAME directory already exists"
+        continue
+      else
+        mkdir -p $DATA_DIR/$NAME/$COMMIT_TIME
     fi
-    echo "Investigating $FILE..."
-    VERSIONS=$(git log --pretty=format:"%H" $FILE)
-    for VERSION in $VERSIONS; do
-      echo "Checking out $VERSION"
-      git checkout $VERSION
-      # from master branch get package-lock.json and npm audit
-      COMMIT_TIME=$(git show -s --format=%ct)
-      if [ -d "$DATA_DIR/$NAME/$COMMIT_TIME" ]; then
-          echo "Skipped commit for $NAME directory already exists"
-          continue
-        else
-          mkdir -p $DATA_DIR/$NAME/$COMMIT_TIME
-      fi
-      cp $FILE $DATA_DIR/$NAME/$COMMIT_TIME 2>/dev/null || :
-    done
+    # copy relevant files
+    cp package.json $DATA_DIR/$NAME/$COMMIT_TIME 2>/dev/null || :
+    cp package-lock.json $DATA_DIR/$NAME/$COMMIT_TIME 2>/dev/null || :
+
+    # audit the version and save a log
+    cd $DATA_DIR/$NAME/$COMMIT_TIME
+    if [ ! -f "package-lock.json" ]; then
+      npm install --package-lock-only
+    fi
+    npm audit 2>&1 > audit.log || :
   done
 
   # remove temp dir
