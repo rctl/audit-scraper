@@ -11,7 +11,7 @@ rm -rf $RESULTS
 mkdir -p $RESULTS
 I=0
 TOTAL=$(($(ls -ld $SOURCES/* | wc -l)-1))
-echo "Use flag -s for utilizing validation of json with hjson"
+$SAFE || echo "Use flag -s for utilizing validation of json with hjson"
 for USER in "${SOURCES}/"*
 do
     I=$((I+1))
@@ -28,7 +28,11 @@ do
             continue
         fi
 
-        #Extract data from logs in commit
+        # Prepare CSV headers
+        echo "COMMIT_TIME,DEPENDENCY,VERSION" > "$DIR/package-lock.csv"
+        echo "COMMIT_TIME,DEPENDENCY,VERSION" > "$DIR/package.csv"
+
+        # Extract data from logs in commit
         for COMMIT in "${REPO}/"*
         do
             I2=$((I2+1))
@@ -36,39 +40,36 @@ do
             cd $COMMIT
             TIMESTAMP=$(basename $COMMIT)
 
-            #Process audit.log
-            #Format: Timestamp,Severity,Type,Package,Dependencyof
+            # Process audit.log
+            # Format: Timestamp,Severity,Type,Package,Dependencyof
             if [ ! -f $DIR/audit.csv ]; then
                 printf "Timestamp,Severity,Type,Package,Dependencyof" >>"$DIR/audit.csv"
             fi
 
             if [ -f 'audit.log' ]; then
-                awk -v commit="$TIMESTAMP" -F\│ 'NF{if ($1 ~ /^ *┌.*┬/) {printf "\n%s", commit} if ($2  !~ /Low|High|Moderate|Critical|Package|Dependency of/) {next} gsub(/ /, "", $0); if($2 ~ /Low|High|Moderate|Critical/){$3=$2","$3} printf ",%s", $3 }' audit.log>> "$DIR/audit.csv"
+                awk -v commit="$TIMESTAMP" -F\│ 'NF{if ($1 ~ /^ *┌.*┬/) {printf "\n%s", commit} if ($2  !~ /Low|High|Moderate|Critical|Package|Dependency of/) {next} gsub(/ /, "", $0); if($2 ~ /Low|High|Moderate|Critical/){$3=$2","$3} printf ",%s", $3 }' audit.log \
+                >> "$DIR/audit.csv"
             fi
 
-            #Process package.json 
-            #Format: name: version
-            #(bundledDependencies are formatted as: name: null)
+            # Process package.json 
+            # Format: name: version
+            # (bundledDependencies are formatted as: name: null)
             if [ -f 'package.json' ] && [ ! -z 'package.json' ]; then
-                echo "COMMIT,$TIMESTAMP" >> "$DIR/package.csv"
-                if $SAFE ; then
-                    hjson -j package.json | jq ' (select(.bundledDependencies != null) | reduce .bundledDependencies[] as $i ({}; .[$i] = null)) + .dependencies + .packageDependencies + .devDependencies + .optionalDependencies + {}' | jq -r 'keys[] as $key | "\($key),\(.[$key])"' >>  "$DIR/package.csv"
-                else
-                    jq ' (select(.bundledDependencies != null) | reduce .bundledDependencies[] as $i ({}; .[$i] = null)) + .dependencies + .packageDependencies + .devDependencies + .optionalDependencies + {}' package.json | jq -r 'keys[] as $key | "\($key),\(.[$key])"' >>  "$DIR/package.csv"
-                fi
+                ($SAFE && hjson -j package.json || cat package.json)  | \
+                    jq ' (select(.bundledDependencies != null) | reduce .bundledDependencies[] as $i ({}; .[$i] = null)) + .dependencies + .packageDependencies + .devDependencies + .optionalDependencies + {}' | \
+                    jq -r --arg TIMESTAMP "$TIMESTAMP" 'keys[] as $key | "\($TIMESTAMP),\($key),\(.[$key])"' \
+                    >>  "$DIR/package.csv"
             fi
 
-            #Procss package.jq
-            #Format: name: version
+            # Process package-lock.json
+            # Format: name: version
             if [ -f 'package-lock.json' ] && [ ! -z 'package-lock.json' ]; then
-                echo "COMMIT,$TIMESTAMP" >> "$DIR/package-lock.csv"
-                if $SAFE ; then
-                    hjson -j package-lock.json | jq '.dependencies + {}' | jq -r 'keys[] as $key | "\($key),\(.[$key].version)"' >>  "$DIR/package-lock.csv"
-                else
-                    jq '.dependencies + {}' package-lock.json | jq -r 'keys[] as $key | "\($key),\(.[$key].version)"' >>  "$DIR/package-lock.csv"
-                fi
+                ($SAFE && hjson -j package-lock.json || cat package-lock.json) | \
+                    jq '.dependencies + {}' | \
+                    jq -r --arg TIMESTAMP "$TIMESTAMP" 'keys[] as $key | "\($TIMESTAMP),\($key),\(.[$key].version)"' \
+                    >>  "$DIR/package-lock.csv"
             fi
         done
-    echo ""
+    echo
     done
 done
