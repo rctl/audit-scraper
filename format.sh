@@ -31,6 +31,7 @@ do
         # Prepare CSV headers
         echo "COMMIT_TIME,DEPENDENCY,VERSION" > "$DIR/package-lock.csv"
         echo "COMMIT_TIME,DEPENDENCY,VERSION" > "$DIR/package.csv"
+        printf "Timestamp,Severity,Type,Package,Dependencyof" > "$DIR/audit.csv"
 
         # Extract data from logs in commit
         for COMMIT in "${REPO}/"*
@@ -42,10 +43,6 @@ do
 
             # Process audit.log
             # Format: Timestamp,Severity,Type,Package,Dependencyof
-            if [ ! -f $DIR/audit.csv ]; then
-                printf "Timestamp,Severity,Type,Package,Dependencyof" >>"$DIR/audit.csv"
-            fi
-
             if [ -f 'audit.log' ]; then
                 awk -v commit="$TIMESTAMP" -F\│ 'NF{if ($1 ~ /^ *┌.*┬/) {printf "\n%s", commit} if ($2  !~ /Low|High|Moderate|Critical|Package|Dependency of/) {next} gsub(/ /, "", $0); if($2 ~ /Low|High|Moderate|Critical/){$3=$2","$3} printf ",%s", $3 }' audit.log \
                 >> "$DIR/audit.csv"
