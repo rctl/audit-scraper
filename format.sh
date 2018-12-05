@@ -23,8 +23,7 @@ do
         mkdir -p $DIR
         I2=0
         TOTALCOMMITS=$(($(ls -l $REPO | wc -l)-1))
-        if [ -z "$(ls -A $REPO)" ];
-        then
+        if [ -z "$(ls -A $REPO)" ]; then
             echo "Repo '$(basename $USER)/$(basename $REPO)' is empty"
             continue
         fi
@@ -36,11 +35,15 @@ do
             echo -ne "COMMIT: $I2/$TOTALCOMMITS"\\r
             cd $COMMIT
             TIMESTAMP=$(basename $COMMIT)
+
             #Process audit.log
-            #Format: column1: column2
-            if [ -f 'audit.log' ]; then            
-                echo "COMMIT,$TIMESTAMP" >> "$DIR/audit.csv"
-                awk -F\│ 'NF{if ($2  !~ /Low|High|Moderate|Critical|Package|Dependency of/) {next} gsub(/ /, "", $0); print $2","$3}' audit.log>> "$DIR/audit.csv"
+            #Format: Timestamp,Severity,Type,Package,Dependencyof
+            if [ ! -f $DIR/audit.csv ]; then
+                printf "Timestamp,Severity,Type,Package,Dependencyof" >>"$DIR/audit.csv"
+            fi
+
+            if [ -f 'audit.log' ]; then
+                awk -v commit="$TIMESTAMP" -F\│ 'NF{if ($1 ~ /^ *┌.*┬/) {printf "\n%s", commit} if ($2  !~ /Low|High|Moderate|Critical|Package|Dependency of/) {next} gsub(/ /, "", $0); if($2 ~ /Low|High|Moderate|Critical/){$3=$2","$3} printf ",%s", $3 }' audit.log>> "$DIR/audit.csv"
             fi
 
             #Process package.json 
