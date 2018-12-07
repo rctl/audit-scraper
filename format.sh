@@ -32,6 +32,7 @@ do
         echo "COMMIT_TIME,DEPENDENCY,VERSION" > "$DIR/package-lock.csv"
         echo "COMMIT_TIME,DEPENDENCY,VERSION" > "$DIR/package.csv"
         printf "Timestamp,Severity,Type,Package,Dependencyof" > "$DIR/audit.csv"
+        echo "COMMIT,TOTAL,LOW,MODERATE,HIGH,CRITICAL" > "$DIR/audit_sum.csv"
 
         # Extract data from logs in commit
         for COMMIT in "${REPO}/"*
@@ -41,21 +42,21 @@ do
             cd $COMMIT
             TIMESTAMP=$(basename $COMMIT)
 
+            if [ -f 'audit.log' ]; then
+                SUM=$(grep "found" audit.log)
+                LOW=$(echo $SUM | grep -o -E "\d+ low" | cut -d' ' -f 1 | grep -E "\d" || echo "0")
+                MODERATE=$(echo $SUM | grep -o -E "\d+ moderate" | cut -d' ' -f 1 | grep -E "\d" || echo "0")
+                HIGH=$(echo $SUM | grep -o -E "\d+ high" | cut -d' ' -f 1 | grep -E "\d" || echo "0")
+                CRITICAL=$(echo $SUM | grep -o -E "\d+ critical" | cut -d' ' -f 1 | grep -E "\d" || echo "0")
+                TOTAL=$(echo $SUM | grep -o -E "\d+ scanned" | cut -d' ' -f 1 | grep -E "\d" || echo "0")
+                echo "$TIMESTAMP,$TOTAL,$LOW,$MODERATE,$HIGH,$CRITICAL" >> "$DIR/audit_sum.csv"
+            fi
+
             # Process audit.log
             # Format: Timestamp,Severity,Type,Package,Dependencyof
             if [ -f 'audit.log' ]; then
                 awk -v commit="$TIMESTAMP" -F\│ 'NF{if ($1 ~ /^ *┌.*┬/) {printf "\n%s", commit} if ($2  !~ /Low|High|Moderate|Critical|Package|Dependency of/) {next} gsub(/ /, "", $0); if($2 ~ /Low|High|Moderate|Critical/){$3=$2","$3} printf ",%s", $3 }' audit.log \
                 >> "$DIR/audit.csv"
-            fi
-
-            # Process package.json 
-            # Format: name: version
-            # (bundledDependencies are formatted as: name: null)
-            if [ -f 'package.json' ] && [ ! -z 'package.json' ]; then
-                ($SAFE && hjson -j package.json || cat package.json)  | \
-                    jq ' (select(.bundledDependencies != null) | reduce .bundledDependencies[] as $i ({}; .[$i] = null)) + .dependencies + .packageDependencies + .devDependencies + .optionalDependencies + {}' | \
-                    jq -r --arg TIMESTAMP "$TIMESTAMP" 'keys[] as $key | "\($TIMESTAMP),\($key),\(.[$key])"' \
-                    >>  "$DIR/package.csv"
             fi
 
             # Process package-lock.json
