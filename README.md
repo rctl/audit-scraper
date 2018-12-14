@@ -33,3 +33,7 @@ To format these results into CSV you can use `$ ./format.sh -s` (requires you to
 ### Slides
 
 You can find the slides for our presentation here: https://bit.ly/2QBkfra
+
+### About 
+
+This project was part of the course TDDD30 at Linköping University, where we were tasked to investigate methologies and patterns for software development. The participants of this project where: Rasmus, Sebastian, Oscar and Markus.
