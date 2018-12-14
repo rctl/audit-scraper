@@ -3,7 +3,7 @@ Checks JS projects for vulnerabilities and their time to upgrade of vulnerable d
 
 ---
 
-audit-scraper is a simple script to fetch all versions of `package.json` for the top 100 JavaScript projects on GitHub and run `npm audit` on them. The logs are then used to determine the mean time to update and other measurements related to the management of vulnerabilities.
+audit-scraper is a simple script to fetch all versions of `package-lock.json` for the top 100 JavaScript projects on GitHub and run `npm audit` on them. The logs are then used to investigate these projects in relation to the management of dependencies and vulnerabilities. The data that was scraped and a summary of the results can be found in the sections below. 
 
 ---
 
